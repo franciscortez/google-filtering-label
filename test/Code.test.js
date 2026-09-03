@@ -8,8 +8,9 @@ const {
   classifyMessage_,
   countLabels_,
   extractEmailAddress_,
+  getGitHubAutomationArchiveReason_,
   isArchiveDue_,
-  isLinearCodeBotMessage_,
+  isAutomatedGitHubMessage_,
   summarizeDecisions_,
 } = require('../helpers/Classifier.js');
 
@@ -312,31 +313,59 @@ test('balanced archive set covers routine categories', () => {
   });
 });
 
-test('Linear Code bot always archives immediately', () => {
+test('every GitHub bot archives immediately', () => {
   const now = Date.UTC(2026, 8, 3, 12);
-  const linearBot = buildDecision_({
-    id: 'linear',
-    from: '"linear-code[bot]" <notifications@github.com>',
-    subject: 'Re: [owner/repo] test update (PR #69)',
-    snippet: 'linear-code[bot] left a comment',
-    internalDate: String(now),
+  ['linear-code[bot]', 'vercel[bot]', 'future-service[bot]'].forEach(botName => {
+    const bot = buildDecision_({
+      id: botName,
+      from: `"${botName}" <notifications@github.com>`,
+      subject: 'Re: [owner/repo] automated update (PR #69)',
+      snippet: `${botName} left a comment`,
+      internalDate: String(now),
+      gmailLabelIds: ['INBOX', 'STARRED', 'UNREAD'],
+    });
+
+    assert.equal(isAutomatedGitHubMessage_(bot), true, botName);
+    assert.equal(getGitHubAutomationArchiveReason_(bot), 'immediate:github-bot', botName);
+    assert.equal(bot.archiveEligible, true, botName);
+    assert.equal(bot.archiveImmediately, true, botName);
+    assert.equal(bot.archiveReason, 'immediate:github-bot', botName);
+    assert.equal(isArchiveDue_(bot, now), true, botName);
+    assert.deepEqual(bot.labelNames, [LABELS.github], botName);
+  });
+});
+
+test('GitHub CI activity archives immediately despite action and starred protection', () => {
+  const ciFailure = buildDecision_({
+    from: 'Developer <notifications@github.com>',
+    cc: 'Ci activity <ci_activity@noreply.github.com>',
+    subject: '[owner/repo] PR run failed: CI - feature work (abc1234)',
     gmailLabelIds: ['INBOX', 'STARRED', 'UNREAD'],
   });
 
-  assert.equal(isLinearCodeBotMessage_(linearBot), true);
-  assert.equal(linearBot.archiveEligible, true);
-  assert.equal(linearBot.archiveImmediately, true);
-  assert.equal(linearBot.archiveReason, 'immediate:linear-code-bot');
-  assert.equal(isArchiveDue_(linearBot, now), true);
-  assert.deepEqual(linearBot.labelNames, [LABELS.github]);
+  assert.equal(isAutomatedGitHubMessage_(ciFailure), true);
+  assert.equal(getGitHubAutomationArchiveReason_(ciFailure), 'immediate:github-ci');
+  assert.deepEqual(ciFailure.labelNames, [LABELS.action, LABELS.github]);
+  assert.equal(ciFailure.archiveEligible, true);
+  assert.equal(ciFailure.archiveImmediately, true);
+  assert.equal(ciFailure.archiveReason, 'immediate:github-ci');
 });
 
-test('other GitHub bots retain normal delayed policy', () => {
-  const otherBot = buildDecision_({
-    from: '"vercel[bot]" <notifications@github.com>',
-    subject: 'Re: [owner/repo] deployment update',
+test('human GitHub activity and non-GitHub bot text do not archive immediately', () => {
+  const humanReview = buildDecision_({
+    from: 'Reviewer <notifications@github.com>',
+    cc: 'Review requested <review_requested@noreply.github.com>',
+    subject: 'Re: [owner/repo] feature work (PR #42)',
+    snippet: 'Reviewer requested your review',
   });
-  assert.equal(isLinearCodeBotMessage_(otherBot), false);
-  assert.equal(otherBot.archiveEligible, true);
-  assert.equal(otherBot.archiveImmediately, false);
+  const outsideBot = buildDecision_({
+    from: '"service[bot]" <notifications@example.com>',
+    subject: 'Automated update',
+  });
+
+  assert.equal(isAutomatedGitHubMessage_(humanReview), false);
+  assert.equal(humanReview.archiveImmediately, false);
+  assert.equal(humanReview.archiveEligible, false);
+  assert.equal(isAutomatedGitHubMessage_(outsideBot), false);
+  assert.equal(outsideBot.archiveImmediately, false);
 });

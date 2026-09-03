@@ -198,11 +198,12 @@ function classifySecurity_(labels, sender, domain, subject) {
 }
 
 function evaluateArchivePolicy_(decision) {
-  if (isLinearCodeBotMessage_(decision)) {
+  const githubAutomationReason = getGitHubAutomationArchiveReason_(decision);
+  if (githubAutomationReason) {
     return {
       archiveEligible: true,
       archiveImmediately: true,
-      archiveReason: 'immediate:linear-code-bot',
+      archiveReason: githubAutomationReason,
     };
   }
 
@@ -238,10 +239,20 @@ function isArchiveDue_(decision, nowMs, delayMs = ARCHIVE_POLICY.delayMs) {
     && internalDateMs <= nowMs - delayMs;
 }
 
-function isLinearCodeBotMessage_(message) {
-  const from = normalizeText_(message.from).toLowerCase();
-  return extractEmailAddress_(from) === 'notifications@github.com'
-    && /(?:^|["\s])linear-code\[bot\](?:["\s<]|$)/i.test(from);
+function getGitHubAutomationArchiveReason_(message) {
+  const from = normalizeText_(message.from);
+  if (extractEmailAddress_(from) !== 'notifications@github.com') return '';
+  if (/\[bot\]/i.test(from)) return 'immediate:github-bot';
+
+  const cc = normalizeText_(message.cc);
+  if (/(?:^|[<,\s])ci_activity@noreply\.github\.com(?:[>,\s]|$)/i.test(cc)) {
+    return 'immediate:github-ci';
+  }
+  return '';
+}
+
+function isAutomatedGitHubMessage_(message) {
+  return Boolean(getGitHubAutomationArchiveReason_(message));
 }
 
 function summarizeDecisions_(decisions) {
@@ -289,8 +300,9 @@ if (typeof module !== 'undefined' && module.exports) {
     countLabels_,
     evaluateArchivePolicy_,
     extractEmailAddress_,
+    getGitHubAutomationArchiveReason_,
     isArchiveDue_,
-    isLinearCodeBotMessage_,
+    isAutomatedGitHubMessage_,
     summarizeDecisions_,
   };
 }

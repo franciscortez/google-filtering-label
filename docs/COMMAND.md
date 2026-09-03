@@ -138,7 +138,7 @@ in Apps Script editor:
 
 - `previewIncomingMail`: preview messages near processing cursor.
 - `processIncomingMail`: run normal label automation immediately.
-  It also archives exact `linear-code[bot]` GitHub messages immediately,
+  It also archives GitHub `[bot]` and CI activity messages immediately,
   regardless of general archive switch.
 - `previewBackfill30Days`: preview 30-day candidates without changing Gmail.
 - `backfillLast30Days`: apply labels to reviewed 30-day candidates.

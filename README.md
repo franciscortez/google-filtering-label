@@ -12,7 +12,7 @@ labels and through Gmail search. Unread messages stay unread.
 ```mermaid
 flowchart TD
     A[New email arrives] --> B[Check email every 5 minutes]
-    B --> C{Linear Code bot?}
+    B --> C{GitHub bot or CI activity?}
     C -- Yes --> D[Add Work / GitHub label]
     D --> E[Archive immediately]
     C -- No --> F[Choose matching labels]
@@ -50,8 +50,9 @@ flowchart TD
 - Social emails
 - Subscription updates that are not payment records
 
-Linear Code bot messages are different: they receive the `02 Work/GitHub`
-label and are archived during the next check without waiting 24 hours.
+GitHub bot and CI activity messages are different: they receive the
+`02 Work/GitHub` label and are archived during the next check without waiting
+24 hours.
 
 ## Safety rules
 
@@ -61,8 +62,8 @@ label and are archived during the next check without waiting 24 hours.
 - Never removes useful destination labels
 - Removes only the Inbox location when archiving
 - Checks an email again before archiving it
-- A starred email always stays in the Inbox, except an exact Linear Code bot
-  message
+- A starred email always stays in the Inbox, except GitHub bot and CI activity
+  messages
 
 ## First-time setup
 
@@ -114,8 +115,8 @@ Running a preview does not change Gmail.
 Run `disableArchiveAutomation`.
 
 Labeling continues, but no regular emails are queued for archive. Emails still
-waiting in the 24-hour queue are removed from that queue. Linear Code bot mail
-continues to archive immediately.
+waiting in the 24-hour queue are removed from that queue. GitHub bot and CI
+activity mail continues to archive immediately.
 
 ## Stop all automation
 

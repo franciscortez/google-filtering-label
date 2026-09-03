@@ -294,7 +294,7 @@ function listMessagesByQuery_(query, failWhenOverLimit, labelIds = []) {
 function getMessageMetadata_(messageId, labelNamesById = {}) {
   const message = Gmail.Users.Messages.get('me', messageId, {
     format: 'metadata',
-    metadataHeaders: ['From', 'Subject'],
+    metadataHeaders: ['From', 'Subject', 'Cc'],
   });
   const headers = {};
   ((message.payload && message.payload.headers) || []).forEach(header => {
@@ -303,6 +303,7 @@ function getMessageMetadata_(messageId, labelNamesById = {}) {
   return {
     id: message.id,
     from: headers.from || '',
+    cc: headers.cc || '',
     subject: headers.subject || '',
     snippet: message.snippet || '',
     internalDate: message.internalDate || '',
@@ -402,7 +403,7 @@ function processPendingArchives_(pendingLabelId, nowMs) {
 
 function processImmediateArchives_(labelIds) {
   const messages = listMessagesByQuery_(
-    'in:inbox from:notifications@github.com "linear-code[bot]" -in:spam -in:trash',
+    'in:inbox from:notifications@github.com {"[bot]" cc:ci_activity@noreply.github.com} -in:spam -in:trash',
     false
   );
   const labelNamesById = getLabelNamesById_();
