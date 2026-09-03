@@ -16,7 +16,11 @@ const LABELS = Object.freeze({
 });
 
 const CLASSIFIER_RULES = Object.freeze({
-  bankDomains: Object.freeze(['bpi.com.ph', 'unionbankph.com', 'maribank.com.ph']),
+  bankDomains: Object.freeze([
+    'bpi.com.ph',
+    'unionbankph.com',
+    'maribank.com.ph',
+  ]),
   applicationDomains: Object.freeze(['e.jobstreet.com', 'myworkday.com']),
   alwaysJobAlertDomains: Object.freeze([
     'noreply.jobs2web.com',
@@ -132,20 +136,18 @@ function classifyAction_(labels, sender, domain, subject, snippet) {
 
 function classifyMoney_(labels, sender, domain, subject) {
   const isWise = domain === 'wise.com';
-  const isMariBank = domain === 'maribank.com.ph';
   const isSyntheticIncomeTest = sender === 'francisemil.cortez@gmail.com'
     && /^\[test-income\]\s+money received\b/i.test(subject);
-  const transactionSubject = /\b(money received|transfer sent|transfer notification|funds transfer|interbank funds transfer)\b/i;
 
   if ((isWise && /^money received\b/i.test(subject)) || isSyntheticIncomeTest) {
     labels.add(LABELS.income);
     labels.add(LABELS.transactions);
-  } else if ((isWise || isMariBank) && transactionSubject.test(subject)) {
+  } else if (isWise && /\b(money received|transfer sent|transfer notification|funds transfer|interbank funds transfer)\b/i.test(subject)) {
     labels.add(LABELS.transactions);
   }
 
   const isBankSender = domainMatches_(domain, CLASSIFIER_RULES.bankDomains);
-  if (isBankSender && !labels.has(LABELS.transactions)) labels.add(LABELS.banking);
+  if (isBankSender) classifyBankMessage_(labels, sender, subject);
 
   const isSpotify = domainMatches_(domain, ['spotify.com', 'hello.spotify.com']);
   const subscriptionSubject = /\b(premium|family plan|spotify plan|subscription|membership|renewal)\b/i;
@@ -154,6 +156,46 @@ function classifyMoney_(labels, sender, domain, subject) {
     labels.add(LABELS.subscriptions);
     if (subscriptionPaymentSubject.test(subject)) labels.add(LABELS.transactions);
   }
+}
+
+function classifyBankMessage_(labels, sender, subject) {
+  const transactionEvent = /(?:\b(?:atm )?withdrawal\b|\b(?:check|cheque) deposit (?:confirmation|notification|accepted|cleared|successful)\b|\b(?:debit |visa debit |card )(?:card )?(?:purchase|payment|transaction)\b|\btransaction (?:failed|declined|reversed|unauthori[sz]ed)\b|\b(?:bill|biil)s? payment\b|\bsuccessful .*payment\b|\bpayments? (?:confirmation|notification|successful|completed|received)\b|\b(?:incoming |interbank (?:funds? )?|funds? )?transfer(?:red| notification| confirmation| successful| succeeded| completed| received| sent| submitted)?\b|\b(?:money (?:received|sent)|received money)\b)/i;
+  const transactionFailure = /\b(?:failed|failure|declined|reversed|reversal|cancelled|canceled|unsuccessful|unauthori[sz]ed)\b/i;
+  const securityEvent = /\b(?:password|one[- ]time (?:pin|password)|otp|login|log[- ]?in|sign[- ]?in|device|mobile key|mobile number (?:update|change)|profile .*(?:blocked|unblocked|locked)|(?:block|unblock) profile|fraud(?: alert)?|scam alert|security alert|suspicious (?:activity|transaction)|account access)\b/i;
+  const serviceEvent = /\b(?:account (?:opening|opened|created|ready|approved|confirmation)|welcome to (?:bpi|unionbank|mari(?:bank|card))|card (?:activation|(?:has been |is now )?activ(?:e|ated)|delivery|delivered|dispatch|linking|linked)|(?:activate|link) (?:your )?(?:debit |visa debit )?card|(?:debit |visa debit )?card .*(?:on (?:the|its) way|delivery|delivered|linked)|all set with apple pay|biometrics confirmation|service (?:confirmation|request))\b/i;
+  const advisory = /\b(?:advisory|important (?:update|notice)|terms(?: and conditions| of use)?|fees?|charges?|regulatory|regulation|guidelines?|maintenance|system activity|service interruption|privacy|policy|policies|notice of change|new email sender|pdic|sim card registration|security reminder|smishing|phishing|cyber threats?|updates? (?:to|on) .*(?:terms|fees|policy)|reminder on .*changes)\b/i;
+  const promotion = /\b(?:loan|rewards?|points?|discount|promo(?:tion)?|referral|refer|cashback|rebate|card offer|exclusive offer|special offer|apply (?:for|now)|get up to|win |chance to win|sale|free |% off|installment|e-?gift|voucher|survey|feedback)\b/i;
+  const defaultsToSocial = sender === 'marketing@maribank.com.ph'
+    || sender === 'sf.noreply@ub.unionbankph.com'
+    || sender === 'no-reply@unionbankph.com';
+
+  if (transactionEvent.test(subject)) {
+    labels.add(LABELS.transactions);
+    if (transactionFailure.test(subject)) labels.add(LABELS.action);
+    return;
+  }
+  if (securityEvent.test(subject)) {
+    labels.add(LABELS.banking);
+    labels.add(LABELS.security);
+    return;
+  }
+  if (serviceEvent.test(subject)) {
+    labels.add(LABELS.banking);
+    return;
+  }
+  if (advisory.test(subject)) {
+    labels.add(LABELS.notices);
+    return;
+  }
+  if (promotion.test(subject)) {
+    labels.add(LABELS.social);
+    return;
+  }
+  if (defaultsToSocial) {
+    labels.add(LABELS.social);
+    return;
+  }
+  labels.add(LABELS.banking);
 }
 
 function classifyCareer_(labels, sender, domain, subject) {

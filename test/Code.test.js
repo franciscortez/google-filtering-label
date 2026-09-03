@@ -89,6 +89,194 @@ test('separates bank transactions from general banking mail', () => {
   );
 });
 
+test('classifies observed trusted-bank subject families', () => {
+  const cases = [
+    ['MariBank <alerts@maribank.com.ph>', 'MariBank Transfer Notification', [LABELS.transactions]],
+    ['MariBank <alerts@maribank.com.ph>', 'Incoming Transfer Notification', [LABELS.transactions]],
+    ['MariCard <alerts@maribank.com.ph>', 'Debit Card Transaction Notification', [LABELS.transactions]],
+    ['MariCard <alerts@maribank.com.ph>', 'ATM Withdrawal Notification', [LABELS.transactions]],
+    ['MariBank <alerts@maribank.com.ph>', 'Shopee Payment Confirmation', [LABELS.transactions]],
+    ['MariBank <alerts@maribank.com.ph>', 'BiIl Payment Notification', [LABELS.transactions]],
+    ['UnionBank <noreply@unionbankph.com>', 'Fund Transfer Confirmation', [LABELS.transactions]],
+    ['UnionBank <noreply@unionbankph.com>', 'Successful Interbank Funds Transfer', [LABELS.transactions]],
+    ['UnionBank <noreply@unionbankph.com>', 'Your transfer has been submitted', [LABELS.transactions]],
+    ['UnionBank <noreply@unionbankph.com>', 'Bills Payment Confirmation', [LABELS.transactions]],
+    ['UnionBank <noreply@unionbankph.com>', 'Check Deposit Confirmation', [LABELS.transactions]],
+    ['UnionBank <noreply@unionbankph.com>', 'Check Deposit Cleared', [LABELS.transactions]],
+    ['UnionBank <noreply@unionbankph.com>', 'Fund Transfer Request Submitted (Ref# UB000000)', [LABELS.transactions]],
+    ['BPI <onlinebanking@bpi.com.ph>', 'Incoming Interbank Transfer Confirmation', [LABELS.transactions]],
+  ];
+
+  cases.forEach(([from, subject, expected]) => {
+    assert.deepEqual(classify(from, subject), expected, subject);
+  });
+});
+
+test('adds Action to failed bank transactions', () => {
+  const cases = [
+    ['MariBank <alerts@maribank.com.ph>', 'Debit Card Transaction Declined'],
+    ['UnionBank <noreply@unionbankph.com>', 'Fund Transfer Failed'],
+    ['BPI <onlinebanking@bpi.com.ph>', 'Unauthorized Card Transaction'],
+    ['UnionBank <noreply@unionbankph.com>', 'Bill Payment Reversed'],
+  ];
+
+  cases.forEach(([from, subject]) => {
+    assert.deepEqual(classify(from, subject), [LABELS.action, LABELS.transactions], subject);
+  });
+});
+
+test('keeps bank setup and service confirmations under Banking', () => {
+  const cases = [
+    ['MariBank <welcome@maribank.com.ph>', 'Your account is ready'],
+    ['MariCard <cards@maribank.com.ph>', 'Activate your Debit Card'],
+    ['MariCard <cards@maribank.com.ph>', 'Your Debit Card is on its way'],
+    ['MariCard <cards@maribank.com.ph>', 'Your card has been activated'],
+    ['UnionBank <noreply@unionbankph.com>', 'Link your Visa Debit Card'],
+  ];
+
+  cases.forEach(([from, subject]) => {
+    assert.deepEqual(classify(from, subject), [LABELS.banking], subject);
+  });
+});
+
+test('adds Banking and Security to bank security events', () => {
+  const cases = [
+    ['MariBank <alerts@maribank.com.ph>', 'Your One-Time Password (OTP)'],
+    ['UnionBank <noreply@unionbankph.com>', 'New Login Detected'],
+    ['BPI <onlinebanking@bpi.com.ph>', 'Your device was registered'],
+    ['UnionBank <noreply@unionbankph.com>', 'Your profile has been blocked'],
+    ['UnionBank <noreply@unionbankph.com>', 'Profile Successfully Unblocked'],
+    ['UnionBank <noreply@unionbankph.com>', 'Mobile Number Update Confirmation'],
+    ['BPI <alerts@bpi.com.ph>', 'Fraud Alert'],
+    ['BPI <onlinebanking@bpi.com.ph>', 'Mobile Key Activation'],
+  ];
+
+  cases.forEach(([from, subject]) => {
+    assert.deepEqual(classify(from, subject), [LABELS.banking, LABELS.security], subject);
+  });
+});
+
+test('makes bank promotions and advisories archive eligible', () => {
+  const promotion = buildDecision_({
+    from: 'MariBank <offers@maribank.com.ph>',
+    subject: 'Refer a friend and earn rewards',
+  });
+  const advisory = buildDecision_({
+    from: 'UnionBank <noreply@unionbankph.com>',
+    subject: 'Advisory: Scheduled System Maintenance',
+  });
+
+  assert.deepEqual(promotion.labelNames, [LABELS.social]);
+  assert.deepEqual(advisory.labelNames, [LABELS.notices]);
+  assert.equal(promotion.archiveEligible, true);
+  assert.equal(advisory.archiveEligible, true);
+});
+
+test('uses trusted bank marketing senders without adding Banking', () => {
+  assert.deepEqual(
+    classify('UnionBank <sf.noreply@ub.unionbankph.com>', 'Pack Light, Bank Smart – Your Travel Sidekick Awaits!'),
+    [LABELS.social]
+  );
+  assert.deepEqual(
+    classify('UnionBank <sf.noreply@ub.unionbankph.com>', 'Important Update on Transaction Fees'),
+    [LABELS.notices]
+  );
+  assert.deepEqual(
+    classify('MariBank <marketing@maribank.com.ph>', 'Mari Loan: Get up to PHP 100,000 in seconds!'),
+    [LABELS.social]
+  );
+});
+
+test('does not mistake setup deposit copy for a transaction', () => {
+  assert.deepEqual(
+    classify('MariBank <alerts@maribank.com.ph>', 'Welcome to MariBank! Get started with a bonus on your first deposit!'),
+    [LABELS.banking]
+  );
+});
+
+test('covers every observed MariBank subject family', () => {
+  const from = 'MariBank <alerts@maribank.com.ph>';
+  const cases = [
+    ['MariBank Transfer Notification', [LABELS.transactions]],
+    ['Successful MariBank Transfer', [LABELS.transactions]],
+    ['Successful Incoming Transfer', [LABELS.transactions]],
+    ['Successful Debit Card Transaction', [LABELS.transactions]],
+    ['Successful Card Transaction', [LABELS.transactions]],
+    ['Successful BiIl Payment to a biller', [LABELS.transactions]],
+    ['Successful Shopee Payment', [LABELS.transactions]],
+    ['Successful ATM Withdrawal', [LABELS.transactions]],
+    ['MariBank and ShopeePay Successfully Linked', [LABELS.banking]],
+    ['Your Physical Card is Now Active and Ready for Use!', [LABELS.banking]],
+    ['Your Physical Card has Arrived!', [LABELS.banking]],
+    ['Successful Limit Update', [LABELS.banking]],
+    ['Your Debit Card is Ready!', [LABELS.banking]],
+    ['Welcome to MariBank! Get started with a bonus on your first deposit!', [LABELS.banking]],
+  ];
+
+  cases.forEach(([subject, expected]) => {
+    assert.deepEqual(classify(from, subject), expected, subject);
+  });
+});
+
+test('covers observed UnionBank operational subject families', () => {
+  const from = 'UnionBank <online@unionbankph.com>';
+  const cases = [
+    ['Fund Transfer Successful (Ref# test)', [LABELS.transactions]],
+    ['Fund Transfer Confirmation (Ref# test)', [LABELS.transactions]],
+    ['Fund Transfer Request Submitted (Ref# test)', [LABELS.transactions]],
+    ['Bills Payment Confirmation', [LABELS.transactions]],
+    ['Check Deposit Cleared', [LABELS.transactions]],
+    ['Check Deposit Accepted', [LABELS.transactions]],
+    ['Password Reset Successful', [LABELS.banking, LABELS.security]],
+    ['Reset Password Request', [LABELS.banking, LABELS.security]],
+    ['Password Change Confirmation', [LABELS.banking, LABELS.security]],
+    ['Profile Succesfully Unblocked', [LABELS.banking, LABELS.security]],
+    ['Unblock Profile Request', [LABELS.banking, LABELS.security]],
+    ['Your UnionBank Online profile was blocked due to unsuccessful login attempts', [LABELS.banking, LABELS.security]],
+    ['New Device UnionBank Online Sign In', [LABELS.banking, LABELS.security]],
+    ['New Device Added to UnionBank Online Profile', [LABELS.banking, LABELS.security]],
+    ['Trust Device Request', [LABELS.banking, LABELS.security]],
+    ['Mobile Number Update Confirmation', [LABELS.banking, LABELS.security]],
+    ['You are all set with Apple Pay', [LABELS.banking]],
+    ['Enable Biometrics Confirmation', [LABELS.banking]],
+  ];
+
+  cases.forEach(([subject, expected]) => {
+    assert.deepEqual(classify(from, subject), expected, subject);
+  });
+});
+
+test('covers every observed BPI subject family', () => {
+  const from = 'BPI <onlinebanking@bpi.com.ph>';
+  const cases = [
+    ['Incoming Interbank Funds Transfer Confirmation', [LABELS.transactions]],
+    ['Mobile Key Activation', [LABELS.banking, LABELS.security]],
+    ['Device Registration Confirmation', [LABELS.banking, LABELS.security]],
+    ['Notice on your BPI Account Application', [LABELS.banking]],
+    ['We received your BPI #SaveUp Online Application', [LABELS.banking]],
+    ['[BPI] Online Deposit Account Application', [LABELS.banking]],
+    ['Win 1-Year Premium Plan! Save & Stream Promo', [LABELS.social]],
+  ];
+
+  cases.forEach(([subject, expected]) => {
+    assert.deepEqual(classify(from, subject), expected, subject);
+  });
+});
+
+test('does not trust bank-like subjects from unrelated senders', () => {
+  const subjects = [
+    'Fund Transfer Confirmation',
+    'Debit Card Transaction Declined',
+    'Your One-Time Password (OTP)',
+    'Advisory: Scheduled System Maintenance',
+    'Refer a friend and earn rewards',
+  ];
+
+  subjects.forEach(subject => {
+    assert.deepEqual(classify('Unknown <sender@example.com>', subject), [], subject);
+  });
+});
+
 test('separates career applications from job alerts', () => {
   assert.deepEqual(
     classify('Jobstreet <updates@e.jobstreet.com>', 'Your application was successfully submitted'),

@@ -50,6 +50,20 @@ flowchart TD
 - Social emails
 - Subscription updates that are not payment records
 
+## Supported banks and products
+
+Trusted bank mail currently covers MariBank and MariCard debit activity,
+UnionBank account and Visa debit activity, and BPI account activity. Transaction
+records stay in the Inbox. Security events receive both Banking and Security;
+failed, declined, reversed, or unauthorized transactions receive both Action
+and Transactions. Account and card setup mail receives Banking. Bank advisories
+receive Notices, while bank promotions receive Social and can archive after 24
+hours unless starred.
+
+Wise income behavior is unchanged: recognized Wise income receives both Income
+and Transactions. Other bank deposits and incoming transfers receive
+Transactions only.
+
 GitHub bot and CI activity messages are different: they receive the
 `02 Work/GitHub` label and are archived during the next check without waiting
 24 hours.
