@@ -1,0 +1,146 @@
+# Gmail Inbox Organizer
+
+This project organizes incoming Gmail messages automatically. It adds useful
+labels, keeps important messages in the Inbox, and archives selected
+low-priority messages.
+
+Archived messages are not deleted. They remain available under their Gmail
+labels and through Gmail search. Unread messages stay unread.
+
+## How it works
+
+```mermaid
+flowchart TD
+    A[New email arrives] --> B[Check email every 5 minutes]
+    B --> C{Linear Code bot?}
+    C -- Yes --> D[Add Work / GitHub label]
+    D --> E[Archive immediately]
+    C -- No --> F[Choose matching labels]
+    F --> G{Important or starred?}
+    G -- Yes --> H[Keep in Inbox]
+    G -- No --> I{Low priority?}
+    I -- No --> H
+    I -- Yes --> J[Keep in Inbox for 24 hours]
+    J --> K[Check again]
+    K --> L{Still safe to archive?}
+    L -- No --> H
+    L -- Yes --> M[Archive and keep labels]
+```
+
+## What stays in the Inbox
+
+- Emails that need action
+- Meeting notes
+- Income and payment records
+- Banking emails
+- Security alerts
+- Job applications
+- Starred emails
+- Emails the organizer does not recognize
+- Important GitHub activity, including failed checks, invitations, review
+  requests, assignments, direct mentions, blocking comments, and requested
+  changes
+
+## What can be archived after 24 hours
+
+- Routine GitHub updates
+- Job alerts
+- Learning emails
+- Reading lists and product notices
+- Social emails
+- Subscription updates that are not payment records
+
+Linear Code bot messages are different: they receive the `02 Work/GitHub`
+label and are archived during the next check without waiting 24 hours.
+
+## Safety rules
+
+- Never deletes emails
+- Never moves emails to Trash
+- Never marks emails as read
+- Never removes useful destination labels
+- Removes only the Inbox location when archiving
+- Checks an email again before archiving it
+- A starred email always stays in the Inbox, except an exact Linear Code bot
+  message
+
+## First-time setup
+
+Install project packages:
+
+```bash
+npm install
+```
+
+Check the project:
+
+```bash
+npm test
+npx clasp status
+```
+
+Upload changes to Google Apps Script:
+
+```bash
+npx clasp push
+```
+
+Open Google Apps Script:
+
+```bash
+npx clasp open-script
+```
+
+In Google Apps Script, choose `installAutomation`, then click **Run**. This
+creates one automatic check that runs every five minutes.
+
+You do not need the **Deploy** button for this project.
+
+## Turn on selected archiving
+
+Archiving is off until you turn it on.
+
+Run these functions from Google Apps Script in this order:
+
+1. `previewArchiveBackfill30Days` shows what would be archived.
+2. `enableArchiveAutomation` turns on archiving for future emails.
+3. `queueArchiveBackfill30Days` optionally includes approved emails from the
+   previous 30 days.
+
+Running a preview does not change Gmail.
+
+## Turn off selected archiving
+
+Run `disableArchiveAutomation`.
+
+Labeling continues, but no regular emails are queued for archive. Emails still
+waiting in the 24-hour queue are removed from that queue. Linear Code bot mail
+continues to archive immediately.
+
+## Stop all automation
+
+Run `removeAutomation`.
+
+This removes the five-minute check, turns off selected archiving, and clears
+the waiting queue. Existing Gmail labels and emails remain unchanged.
+
+## Label older emails without archiving
+
+Run these functions in order:
+
+1. `previewBackfill30Days` shows label choices for the previous 30 days.
+2. `backfillLast30Days` adds those labels without archiving messages.
+
+## Updating the project
+
+After changing `Code.js`, files inside `helpers/`, or `appsscript.json`, run:
+
+```bash
+npm test
+npx clasp push
+```
+
+You normally do not need to run `installAutomation` again. The existing
+five-minute check uses the newest uploaded code.
+
+For every available clasp command, see [docs/COMMAND.md](docs/COMMAND.md).

@@ -1,0 +1,19 @@
+{
+  "name": "google-filtering-label",
+  "version": "1.0.0",
+  "description": "Google Apps Script automation for Gmail labeling and Inbox routing",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test",
+    "clasp": "clasp",
+    "push": "clasp push",
+    "status": "clasp status"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@google/clasp": "^3.4.1"
+  }
+}
