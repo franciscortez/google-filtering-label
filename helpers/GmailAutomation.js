@@ -7,7 +7,7 @@ const AUTOMATION = Object.freeze({
   overlapMs: 10 * 60 * 1000,
   previewLookbackMs: 24 * 60 * 60 * 1000,
   backfillLookbackMs: 30 * 24 * 60 * 60 * 1000,
-  archiveDelayMs: 24 * 60 * 60 * 1000,
+  archiveDelayMs: 12 * 60 * 60 * 1000,
   pageSize: 100,
   maxMessagesPerRun: 500,
 });
@@ -161,6 +161,28 @@ function disableArchiveAutomation_() {
     PropertiesService.getScriptProperties().setProperty(AUTOMATION.archiveEnabledProperty, 'false');
     const cleared = clearArchiveQueue_();
     const result = { archiveEnabled: false, cleared };
+    console.log(JSON.stringify(result));
+    return result;
+  });
+}
+
+function testArchivePendingWithDelay_(delayHours = 20) {
+  return withAutomationLock_(() => {
+    const properties = PropertiesService.getScriptProperties();
+    if (!isArchiveEnabled_(properties)) {
+      throw new Error('Archive automation is disabled. Run enableArchiveAutomation first.');
+    }
+
+    const hours = typeof delayHours === 'number' ? delayHours : 20;
+    const delayMs = hours * 60 * 60 * 1000;
+    const labelIds = getOrCreateRequiredLabelIds_();
+    const pendingLabelId = getOrCreateArchivePendingLabelId_(labelIds);
+    const now = Date.now();
+    const archiveResult = processPendingArchives_(pendingLabelId, now, delayMs);
+    const result = {
+      testedDelayHours: hours,
+      ...archiveResult,
+    };
     console.log(JSON.stringify(result));
     return result;
   });
@@ -375,7 +397,7 @@ function applyLabelDecisions_(decisions, labelIds, options) {
   return queued;
 }
 
-function processPendingArchives_(pendingLabelId, nowMs) {
+function processPendingArchives_(pendingLabelId, nowMs, delayMs = AUTOMATION.archiveDelayMs) {
   const pendingMessages = listMessagesByQuery_('-in:spam -in:trash', false, [pendingLabelId]);
   const labelNamesById = getLabelNamesById_();
   const archiveMutations = [];
@@ -386,7 +408,7 @@ function processPendingArchives_(pendingLabelId, nowMs) {
     const decision = buildDecision_(getMessageMetadata_(message.id, labelNamesById));
     if (!decision.gmailLabelIds.includes('INBOX') || !decision.archiveEligible) {
       cleanupMutations.push({ id: decision.id, addLabelIds: [], removeLabelIds: [pendingLabelId] });
-    } else if (isArchiveDue_(decision, nowMs, AUTOMATION.archiveDelayMs)) {
+    } else if (isArchiveDue_(decision, nowMs, delayMs)) {
       archiveMutations.push({
         id: decision.id,
         addLabelIds: [],
@@ -451,5 +473,10 @@ function applyMessageMutations_(mutations) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { AUTOMATION, applyMessageMutations_ };
+  module.exports = {
+    AUTOMATION,
+    applyMessageMutations_,
+    processPendingArchives_,
+    testArchivePendingWithDelay_,
+  };
 }

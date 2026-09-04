@@ -470,7 +470,7 @@ test('starred protects mail while Gmail Important does not', () => {
   assert.equal(important.archiveEligible, true);
 });
 
-test('archives only after exact 24-hour delay', () => {
+test('archives only after exact 12-hour delay', () => {
   const now = Date.UTC(2026, 8, 3, 12);
   const routine = buildDecision_({
     id: '1',
@@ -483,6 +483,22 @@ test('archives only after exact 24-hour delay', () => {
   assert.equal(isArchiveDue_({ ...routine, internalDate: String(now - ARCHIVE_POLICY.delayMs + 1) }, now), false);
   assert.equal(isArchiveDue_({ ...routine, internalDate: String(now + 1000) }, now), false);
   assert.equal(isArchiveDue_({ ...routine, internalDate: 'invalid' }, now), false);
+});
+
+test('archives with custom delay parameter', () => {
+  const now = Date.UTC(2026, 8, 3, 12);
+  const sixHoursMs = 6 * 60 * 60 * 1000;
+  const routine = buildDecision_({
+    id: '1',
+    from: 'GitHub <notifications@github.com>',
+    subject: 'Re: [owner/repo] routine update',
+    internalDate: String(now - sixHoursMs),
+  });
+
+  assert.equal(isArchiveDue_(routine, now), false);
+  assert.equal(isArchiveDue_(routine, now, sixHoursMs), true);
+  assert.equal(isArchiveDue_(routine, now, sixHoursMs + 1), false);
+  assert.equal(isArchiveDue_(routine, now, 0), true);
 });
 
 test('balanced archive set covers routine categories', () => {

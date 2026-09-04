@@ -38,3 +38,12 @@ function installAutomation() {
 function removeAutomation() {
   return removeAutomation_();
 }
+
+function testArchivePending() {
+  return testArchivePendingWithDelay_(0);
+}
+
+function testArchivePendingWithDelay(delayHours) {
+  return testArchivePendingWithDelay_(delayHours);
+}
+

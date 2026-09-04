@@ -53,7 +53,7 @@ const CLASSIFIER_RULES = Object.freeze({
 });
 
 const ARCHIVE_POLICY = Object.freeze({
-  delayMs: 24 * 60 * 60 * 1000,
+  delayMs: 12 * 60 * 60 * 1000,
   protectedLabels: Object.freeze([
     LABELS.action,
     LABELS.meetings,

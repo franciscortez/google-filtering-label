@@ -145,7 +145,11 @@ in Apps Script editor:
 - `previewArchiveBackfill30Days`: preview exact 30-day archive candidates.
 - `queueArchiveBackfill30Days`: queue reviewed 30-day candidates; archive mode
   must already be enabled.
-- `enableArchiveAutomation`: enable 24-hour delayed archive for eligible mail.
+- `testArchivePending`: immediately archive any mail currently waiting in
+  archive pending queue without waiting for delay.
+- `testArchivePendingWithDelay`: test pending archive queue using custom delay
+  hours (default 0 hours).
+- `enableArchiveAutomation`: enable 12-hour delayed archive for eligible mail.
 - `disableArchiveAutomation`: disable archive mode and clear pending items.
 - `installAutomation`: replace project processor triggers with one five-minute
   trigger.

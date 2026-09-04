@@ -20,7 +20,7 @@ flowchart TD
     G -- Yes --> H[Keep in Inbox]
     G -- No --> I{Low priority?}
     I -- No --> H
-    I -- Yes --> J[Keep in Inbox for 24 hours]
+    I -- Yes --> J[Keep in Inbox for 12 hours]
     J --> K[Check again]
     K --> L{Still safe to archive?}
     L -- No --> H
@@ -41,7 +41,7 @@ flowchart TD
   requests, assignments, direct mentions, blocking comments, and requested
   changes
 
-## What can be archived after 24 hours
+## What can be archived after 12 hours
 
 - Routine GitHub updates
 - Job alerts
@@ -57,7 +57,7 @@ UnionBank account and Visa debit activity, and BPI account activity. Transaction
 records stay in the Inbox. Security events receive both Banking and Security;
 failed, declined, reversed, or unauthorized transactions receive both Action
 and Transactions. Account and card setup mail receives Banking. Bank advisories
-receive Notices, while bank promotions receive Social and can archive after 24
+receive Notices, while bank promotions receive Social and can archive after 12
 hours unless starred.
 
 Wise income behavior is unchanged: recognized Wise income receives both Income
@@ -66,7 +66,7 @@ Transactions only.
 
 GitHub bot and CI activity messages are different: they receive the
 `02 Work/GitHub` label and are archived during the next check without waiting
-24 hours.
+12 hours.
 
 ## Safety rules
 
@@ -129,7 +129,7 @@ Running a preview does not change Gmail.
 Run `disableArchiveAutomation`.
 
 Labeling continues, but no regular emails are queued for archive. Emails still
-waiting in the 24-hour queue are removed from that queue. GitHub bot and CI
+waiting in the 12-hour queue are removed from that queue. GitHub bot and CI
 activity mail continues to archive immediately.
 
 ## Stop all automation
