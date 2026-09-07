@@ -7,6 +7,7 @@
     "test": "node --test",
     "clasp": "clasp",
     "push": "clasp push",
+    "open": "clasp open-script",
     "status": "clasp status"
   },
   "keywords": [],

@@ -31,6 +31,7 @@ flowchart TD
 
 - Emails that need action
 - Meeting notes
+- Website form submissions from Web3Forms
 - Income and payment records
 - Banking emails
 - Security alerts
@@ -51,6 +52,13 @@ flowchart TD
 - Subscription updates that are not payment records
 
 ## Supported banks and products
+
+Web3Forms submissions receive `02 Work/Web3Forms` and stay in the Inbox.
+The rule matches `notify@web3forms.com` and `notify+...@web3forms.com`,
+regardless of the submission subject. Welcome/support emails and Google
+account notices do not receive this label. Existing labels and unread status
+are preserved. Upload the updated script with `npm run push` to enable the
+rule in the existing automation; no trigger reinstall is needed.
 
 Trusted bank mail currently covers MariBank and MariCard debit activity,
 UnionBank account and Visa debit activity, and BPI account activity. Transaction
@@ -103,7 +111,7 @@ npx clasp push
 Open Google Apps Script:
 
 ```bash
-npx clasp open-script
+npm run open
 ```
 
 In Google Apps Script, choose `installAutomation`, then click **Run**. This

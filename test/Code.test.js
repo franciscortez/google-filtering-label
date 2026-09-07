@@ -56,6 +56,40 @@ test('labels Gemini meeting notes', () => {
   assert.deepEqual(classify('Other <other@google.com>', 'Notes: Meeting on 24 Aug 2026'), []);
 });
 
+test('labels Web3Forms submissions with arbitrary subjects and notification tags', () => {
+  for (const from of [
+    'Notifications <notify+f8vdtq@web3forms.com>',
+    'Website <NOTIFY+another-form@WEB3FORMS.COM>',
+    'notify@web3forms.com',
+  ]) {
+    assert.deepEqual(classify(from, 'test'), [LABELS.web3forms]);
+    const decision = buildDecision_({
+      from,
+      subject: 'Project inquiry',
+      gmailLabelIds: ['INBOX', 'UNREAD'],
+      existingLabelNames: [LABELS.reading],
+    });
+    assert.equal(decision.archiveEligible, false);
+    assert.equal(decision.archiveImmediately, false);
+    assert.equal(decision.archiveReason, `protected:${LABELS.web3forms}`);
+  }
+});
+
+test('excludes Web3Forms onboarding, unrelated senders, and lookalike domains', () => {
+  for (const from of [
+    'support@web3forms.com',
+    'notify+tag@web3forms.com.example.com',
+    'notify+tag@otherweb3forms.com',
+    'Web3Forms <person@example.com>',
+  ]) {
+    assert.deepEqual(classify(from, 'New form submission'), []);
+  }
+  assert.deepEqual(
+    classify('Google <noreply-accounts@google.com>', 'You shared some Google Account data with Web3Forms'),
+    [LABELS.security]
+  );
+});
+
 test('labels Wise income as Income and Transactions', () => {
   assert.deepEqual(
     classify('Wise <noreply@wise.com>', 'Money received from Client Ltd'),

@@ -2,6 +2,7 @@ const LABELS = Object.freeze({
   action: '01 Action',
   github: '02 Work/GitHub',
   meetings: '02 Work/Meetings',
+  web3forms: '02 Work/Web3Forms',
   income: '03 Money/Income',
   transactions: '03 Money/Transactions',
   banking: '03 Money/Banking',
@@ -57,6 +58,7 @@ const ARCHIVE_POLICY = Object.freeze({
   protectedLabels: Object.freeze([
     LABELS.action,
     LABELS.meetings,
+    LABELS.web3forms,
     LABELS.income,
     LABELS.transactions,
     LABELS.banking,
@@ -104,6 +106,9 @@ function classifyMessage_(message) {
 
 function classifyWork_(labels, sender, domain, subject) {
   if (domain === 'github.com') labels.add(LABELS.github);
+  if (/^notify(?:\+[^@\s]+)?@web3forms\.com$/.test(sender)) {
+    labels.add(LABELS.web3forms);
+  }
   if (sender === 'gemini-notes@google.com' && /^notes: meeting\b/i.test(subject)) {
     labels.add(LABELS.meetings);
   }
