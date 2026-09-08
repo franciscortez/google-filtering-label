@@ -197,10 +197,10 @@ function installAutomation_() {
       [AUTOMATION.cursorProperty]: String(now),
       [AUTOMATION.startProperty]: String(now),
     });
-    ScriptApp.newTrigger(AUTOMATION.triggerFunction).timeBased().everyMinutes(5).create();
+    ScriptApp.newTrigger(AUTOMATION.triggerFunction).timeBased().everyMinutes(30).create();
     const result = {
       installed: true,
-      intervalMinutes: 5,
+      intervalMinutes: 30,
       archiveEnabled: isArchiveEnabled_(PropertiesService.getScriptProperties()),
     };
     console.log(JSON.stringify(result));

@@ -11,7 +11,7 @@ labels and through Gmail search. Unread messages stay unread.
 
 ```mermaid
 flowchart TD
-    A[New email arrives] --> B[Check email every 5 minutes]
+    A[New email arrives] --> B[Check email every 30 minutes]
     B --> C{GitHub bot or CI activity?}
     C -- Yes --> D[Add Work / GitHub label]
     D --> E[Archive immediately]
@@ -115,7 +115,7 @@ npm run open
 ```
 
 In Google Apps Script, choose `installAutomation`, then click **Run**. This
-creates one automatic check that runs every five minutes.
+creates one automatic check that runs every thirty minutes.
 
 You do not need the **Deploy** button for this project.
 
@@ -144,7 +144,7 @@ activity mail continues to archive immediately.
 
 Run `removeAutomation`.
 
-This removes the five-minute check, turns off selected archiving, and clears
+This removes the thirty-minute check, turns off selected archiving, and clears
 the waiting queue. Existing Gmail labels and emails remain unchanged.
 
 ## Label older emails without archiving
@@ -164,6 +164,6 @@ npx clasp push
 ```
 
 You normally do not need to run `installAutomation` again. The existing
-five-minute check uses the newest uploaded code.
+thirty-minute check uses the newest uploaded code.
 
 For every available clasp command, see [docs/COMMAND.md](docs/COMMAND.md).

@@ -19,7 +19,7 @@ npx clasp open-script
 - `npx clasp push` uploads local Apps Script source.
 - `npx clasp open-script` opens the linked project in Apps Script editor.
 
-The existing five-minute trigger uses the latest pushed source. `clasp push`
+The existing thirty-minute trigger uses the latest pushed source. `clasp push`
 does not require reinstalling the trigger. A formal deployment is not required
 for this Gmail automation.
 
@@ -151,7 +151,7 @@ in Apps Script editor:
   hours (default 0 hours).
 - `enableArchiveAutomation`: enable 12-hour delayed archive for eligible mail.
 - `disableArchiveAutomation`: disable archive mode and clear pending items.
-- `installAutomation`: replace project processor triggers with one five-minute
+- `installAutomation`: replace project processor triggers with one thirty-minute
   trigger.
 - `removeAutomation`: remove processor triggers, disable archive mode, and clear
   pending items.
