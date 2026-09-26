@@ -72,6 +72,14 @@ Wise income behavior is unchanged: recognized Wise income receives both Income
 and Transactions. Other bank deposits and incoming transfers receive
 Transactions only.
 
+Recognized Atome Card transaction confirmations from `atome.ph` senders,
+including `service.atome.ph`, receive `03 Money/Transactions` and stay in the
+Inbox. Failed, declined, reversed, cancelled, unsuccessful, or unauthorized
+transactions also receive `01 Action`. Verification codes, payment reminders,
+and promotional Atome mail do not receive Transactions solely because they
+mention Atome or payments. Atome account mail does not automatically receive
+Banking.
+
 GitHub bot and CI activity messages are different: they receive the
 `02 Work/GitHub` label and are archived during the next check without waiting
 12 hours.
@@ -153,6 +161,11 @@ Run these functions in order:
 
 1. `previewBackfill30Days` shows label choices for the previous 30 days.
 2. `backfillLast30Days` adds those labels without archiving messages.
+
+To label only existing Atome transaction messages in the Inbox, run
+`previewAtomeBackfill30Days` first. Check its candidate list, then run
+`backfillAtomeTransactions30Days`. This adds Transactions and, for failed
+transactions, Action. It does not archive messages or label unrelated mail.
 
 ## Updating the project
 

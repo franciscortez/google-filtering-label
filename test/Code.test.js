@@ -311,6 +311,57 @@ test('does not trust bank-like subjects from unrelated senders', () => {
   });
 });
 
+test('classifies trusted Atome transaction events and protects them from archiving', () => {
+  const from = 'Atome <no-reply@service.atome.ph>';
+  const cases = [
+    ['Transaction Confirmation: Example Store', 'Your payment of PHP 100.00 using your Atome Card has been successfully processed.'],
+    ['Purchase Confirmation: Example Store', 'Your purchase is complete.'],
+    ['Your Atome Card update', 'Your card payment of PHP 100.00 has been successfully processed.'],
+    ['Card Transaction Notification', 'Your purchase was completed.'],
+  ];
+
+  cases.forEach(([subject, snippet]) => {
+    const decision = buildDecision_({ from, subject, snippet, gmailLabelIds: ['INBOX'] });
+    assert.deepEqual(decision.labelNames, [LABELS.transactions], subject);
+    assert.equal(decision.archiveEligible, false, subject);
+    assert.equal(decision.archiveReason, `protected:${LABELS.transactions}`, subject);
+  });
+});
+
+test('Atome failure events require Action as well as Transactions', () => {
+  const from = 'Atome <alerts@service.atome.ph>';
+  const cases = [
+    ['Card Transaction Declined', ''],
+    ['Payment Failed', ''],
+    ['Transaction Reversed', ''],
+    ['Unauthorized Card Transaction', ''],
+    ['Your Atome Card update', 'Your card transaction was cancelled.'],
+  ];
+
+  cases.forEach(([subject, snippet]) => {
+    assert.deepEqual(classify(from, subject, snippet), [LABELS.action, LABELS.transactions], subject);
+  });
+});
+
+test('Atome non-transactions and untrusted senders do not get Transactions', () => {
+  const from = 'Atome <no-reply@service.atome.ph>';
+  const cases = [
+    ['Atome Email Verification Code', "Here's your verification code. Enter it in the Atome App."],
+    ['Welcome to Atome', 'Set up your account and activate your card.'],
+    ['Your Atome payment is due soon', 'Pay before the due date to avoid fees.'],
+    ['Atome Card rewards', 'Get cashback on your next purchase.'],
+    ['Your account update', 'Learn more about payment options and fees.'],
+  ];
+
+  cases.forEach(([subject, snippet]) => {
+    assert.equal(classify(from, subject, snippet).includes(LABELS.transactions), false, subject);
+  });
+  for (const sender of ['no-reply@atome.ph.example.com', 'no-reply@otheratome.ph', 'Atome <person@example.com>']) {
+    assert.equal(classify(sender, 'Transaction Confirmation: Example Store').includes(LABELS.transactions), false, sender);
+  }
+  assert.equal(classify('person@example.com', 'Your Atome transaction was successful').includes(LABELS.transactions), false);
+});
+
 test('separates career applications from job alerts', () => {
   assert.deepEqual(
     classify('Jobstreet <updates@e.jobstreet.com>', 'Your application was successfully submitted'),

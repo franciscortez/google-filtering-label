@@ -22,6 +22,7 @@ const CLASSIFIER_RULES = Object.freeze({
     'unionbankph.com',
     'maribank.com.ph',
   ]),
+  atomeDomains: Object.freeze(['atome.ph']),
   applicationDomains: Object.freeze(['e.jobstreet.com', 'myworkday.com']),
   alwaysJobAlertDomains: Object.freeze([
     'noreply.jobs2web.com',
@@ -96,7 +97,7 @@ function classifyMessage_(message) {
 
   classifyWork_(labels, sender, domain, subject);
   classifyAction_(labels, sender, domain, subject, snippet);
-  classifyMoney_(labels, sender, domain, subject);
+  classifyMoney_(labels, sender, domain, subject, snippet);
   classifyCareer_(labels, sender, domain, subject);
   classifyKnowledge_(labels, sender, domain, subject);
   classifySecurity_(labels, sender, domain, subject);
@@ -139,7 +140,7 @@ function classifyAction_(labels, sender, domain, subject, snippet) {
   }
 }
 
-function classifyMoney_(labels, sender, domain, subject) {
+function classifyMoney_(labels, sender, domain, subject, snippet) {
   const isWise = domain === 'wise.com';
   const isSyntheticIncomeTest = sender === 'francisemil.cortez@gmail.com'
     && /^\[test-income\]\s+money received\b/i.test(subject);
@@ -153,6 +154,7 @@ function classifyMoney_(labels, sender, domain, subject) {
 
   const isBankSender = domainMatches_(domain, CLASSIFIER_RULES.bankDomains);
   if (isBankSender) classifyBankMessage_(labels, sender, subject);
+  classifyAtomeMessage_(labels, domain, subject, snippet);
 
   const isSpotify = domainMatches_(domain, ['spotify.com', 'hello.spotify.com']);
   const subscriptionSubject = /\b(premium|family plan|spotify plan|subscription|membership|renewal)\b/i;
@@ -161,6 +163,22 @@ function classifyMoney_(labels, sender, domain, subject) {
     labels.add(LABELS.subscriptions);
     if (subscriptionPaymentSubject.test(subject)) labels.add(LABELS.transactions);
   }
+}
+
+function classifyAtomeMessage_(labels, domain, subject, snippet) {
+  if (!domainMatches_(domain, CLASSIFIER_RULES.atomeDomains)) return;
+
+  const transactionNoun = '(?:card transaction|transaction|card payment|payment|purchase)';
+  const failure = '(?:failed|failure|declined|reversed|reversal|cancelled|canceled|unsuccessful|unauthori[sz]ed)';
+  const success = '(?:successful|successfully processed|completed|processed|approved|charged|spent)';
+  const confirmation = /\b(?:card transaction|transaction|card payment|payment|purchase) (?:confirmation|notification)\b/i;
+  const event = new RegExp(`\\b${transactionNoun}\\b.{0,160}\\b(?:${success}|${failure})\\b|\\b(?:${success}|${failure})\\b.{0,80}\\b${transactionNoun}\\b`, 'i');
+  const failedEvent = new RegExp(`\\b${transactionNoun}\\b.{0,160}\\b${failure}\\b|\\b${failure}\\b.{0,80}\\b${transactionNoun}\\b`, 'i');
+  const texts = [subject, snippet];
+
+  if (!texts.some(text => confirmation.test(text) || event.test(text))) return;
+  labels.add(LABELS.transactions);
+  if (texts.some(text => failedEvent.test(text))) labels.add(LABELS.action);
 }
 
 function classifyBankMessage_(labels, sender, subject) {
@@ -330,6 +348,12 @@ function extractEmailAddress_(value) {
   return emailMatch ? emailMatch[0] : normalized;
 }
 
+function isAtomeSender_(from) {
+  const sender = extractEmailAddress_(from);
+  const domain = sender.includes('@') ? sender.split('@').pop() : '';
+  return domainMatches_(domain, CLASSIFIER_RULES.atomeDomains);
+}
+
 function normalizeText_(value) {
   return String(value || '').trim().replace(/\s+/g, ' ');
 }
@@ -349,6 +373,7 @@ if (typeof module !== 'undefined' && module.exports) {
     extractEmailAddress_,
     getGitHubAutomationArchiveReason_,
     isArchiveDue_,
+    isAtomeSender_,
     isAutomatedGitHubMessage_,
     summarizeDecisions_,
   };
