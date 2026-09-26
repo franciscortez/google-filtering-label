@@ -102,6 +102,36 @@ function backfillLast30Days_() {
   });
 }
 
+function previewAtomeBackfill30Days_() {
+  const now = Date.now();
+  const decisions = getAtomeBackfillDecisions_(now);
+  const result = { days: 30, ...buildPreviewResult_(decisions, now) };
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function backfillAtomeTransactions30Days_() {
+  return withAutomationLock_(() => {
+    const decisions = getAtomeBackfillDecisions_(Date.now());
+    const labelIds = getOrCreateRequiredLabelIds_();
+    const mutations = decisions.map(decision => {
+      const labelNames = [LABELS.transactions];
+      if (decision.labelNames.includes(LABELS.action)) labelNames.push(LABELS.action);
+      return {
+        id: decision.id,
+        addLabelIds: labelNames
+          .filter(name => !decision.existingLabelNames.includes(name))
+          .map(name => labelIds[name]),
+        removeLabelIds: [],
+      };
+    });
+    applyMessageMutations_(mutations);
+    const result = { days: 30, ...summarizeDecisions_(decisions), labelCounts: countLabels_(decisions) };
+    console.log(JSON.stringify(result));
+    return result;
+  });
+}
+
 function previewArchiveBackfill30Days_() {
   const now = Date.now();
   const decisions = getInboxDecisionsSince_(now - AUTOMATION.backfillLookbackMs);
@@ -253,6 +283,15 @@ function getInboxDecisionsSince_(afterMs) {
     `in:inbox -in:spam -in:trash after:${Math.floor(afterMs / 1000)}`,
     true
   ).map(message => buildDecision_(getMessageMetadata_(message.id, labelNamesById)));
+}
+
+function getAtomeBackfillDecisions_(nowMs) {
+  const labelNamesById = getLabelNamesById_();
+  return listMessagesByQuery_(
+    `in:inbox from:(atome.ph) -in:spam -in:trash after:${Math.floor((nowMs - AUTOMATION.backfillLookbackMs) / 1000)}`,
+    true
+  ).map(message => buildDecision_(getMessageMetadata_(message.id, labelNamesById)))
+    .filter(decision => isAtomeSender_(decision.from) && decision.labelNames.includes(LABELS.transactions));
 }
 
 function buildPreviewResult_(decisions, nowMs) {
@@ -476,6 +515,8 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     AUTOMATION,
     applyMessageMutations_,
+    backfillAtomeTransactions30Days_,
+    previewAtomeBackfill30Days_,
     processPendingArchives_,
     testArchivePendingWithDelay_,
   };

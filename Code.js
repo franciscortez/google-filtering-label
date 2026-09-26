@@ -15,6 +15,14 @@ function backfillLast30Days() {
   return backfillLast30Days_();
 }
 
+function previewAtomeBackfill30Days() {
+  return previewAtomeBackfill30Days_();
+}
+
+function backfillAtomeTransactions30Days() {
+  return backfillAtomeTransactions30Days_();
+}
+
 function previewArchiveBackfill30Days() {
   return previewArchiveBackfill30Days_();
 }
