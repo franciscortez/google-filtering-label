@@ -148,6 +148,43 @@ function previewArchiveBackfill30Days_() {
   return result;
 }
 
+function previewOnlineJobsApplications_() {
+  const result = {
+    scope: 'all-history',
+    ...buildPreviewResult_(getOnlineJobsBackfillDecisions_(), Date.now()),
+  };
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function backfillOnlineJobsApplications_() {
+  return withAutomationLock_(() => {
+    // Complete the bounded scan before creating labels or modifying messages.
+    const decisions = getOnlineJobsBackfillDecisions_();
+    const labelNames = [LABELS.applications, LABELS.onlineJobsApplications];
+    const labelIds = getOrCreateRequiredLabelIds_(labelNames);
+    const pendingLabelId = labelIds[AUTOMATION.archivePendingLabel];
+    const mutations = decisions.map(decision => ({
+      id: decision.id,
+      addLabelIds: labelNames
+        .filter(name => !decision.existingLabelNames.includes(name))
+        .map(name => labelIds[name]),
+      removeLabelIds: pendingLabelId && decision.gmailLabelIds.includes(pendingLabelId)
+        ? [pendingLabelId] : [],
+    }));
+    applyMessageMutations_(mutations);
+    const result = {
+      scope: 'all-history',
+      ...summarizeDecisions_(decisions),
+      labelCounts: countLabels_(decisions),
+      changed: mutations.filter(mutation => mutation.addLabelIds.length || mutation.removeLabelIds.length).length,
+      cleared: mutations.filter(mutation => mutation.removeLabelIds.length).length,
+    };
+    console.log(JSON.stringify(result));
+    return result;
+  });
+}
+
 function queueArchiveBackfill30Days_() {
   return withAutomationLock_(() => {
     const properties = PropertiesService.getScriptProperties();
@@ -279,19 +316,59 @@ function isArchiveEnabled_(properties) {
 
 function getInboxDecisionsSince_(afterMs) {
   const labelNamesById = getLabelNamesById_();
+  const threadCache = new Map();
   return listMessagesByQuery_(
     `in:inbox -in:spam -in:trash after:${Math.floor(afterMs / 1000)}`,
     true
-  ).map(message => buildDecision_(getMessageMetadata_(message.id, labelNamesById)));
+  ).map(message => buildDecision_(getMessageMetadata_(message.id, labelNamesById, threadCache)));
 }
 
 function getAtomeBackfillDecisions_(nowMs) {
   const labelNamesById = getLabelNamesById_();
+  const threadCache = new Map();
   return listMessagesByQuery_(
     `in:inbox from:(atome.ph) -in:spam -in:trash after:${Math.floor((nowMs - AUTOMATION.backfillLookbackMs) / 1000)}`,
     true
-  ).map(message => buildDecision_(getMessageMetadata_(message.id, labelNamesById)))
+  ).map(message => buildDecision_(getMessageMetadata_(message.id, labelNamesById, threadCache)))
     .filter(decision => isAtomeSender_(decision.from) && decision.labelNames.includes(LABELS.transactions));
+}
+
+function getOnlineJobsBackfillDecisions_() {
+  const labelNamesById = getLabelNamesById_();
+  const references = listMessagesByQuery_(
+    'from:support@onlinejobs.ph subject:application -in:spam -in:trash -in:drafts', true
+  );
+  const childLabelId = Object.keys(labelNamesById)
+    .find(id => labelNamesById[id] === LABELS.onlineJobsApplications);
+  if (childLabelId) {
+    references.push(...listMessagesByQuery_('-in:spam -in:trash -in:drafts', true, [childLabelId]));
+  }
+  const uniqueReferences = new Map(references.map(message => [message.id, message]));
+  assertOnlineJobsScanLimit_(uniqueReferences.size);
+  const threadCache = new Map();
+  const candidates = new Map();
+  uniqueReferences.forEach(reference => {
+    const message = getMessageMetadata_(reference.id, labelNamesById, threadCache);
+    if (!isOnlineJobsMessageEligible_(message)) return;
+    const members = message.threadId
+      ? getThreadMessages_(message.threadId, labelNamesById, threadCache) : [message];
+    if (!hasOnlineJobsApplicationContext_(members)) return;
+    members.filter(isOnlineJobsMessageEligible_).forEach(member => {
+      candidates.set(member.id, { ...member, onlineJobsApplicationThread: true });
+      assertOnlineJobsScanLimit_(candidates.size);
+    });
+  });
+  return Array.from(candidates.values()).map(message => ({
+    ...buildDecision_(message),
+    // The targeted preview and backfill expose only their destination labels.
+    labelNames: [LABELS.applications, LABELS.onlineJobsApplications],
+  }));
+}
+
+function assertOnlineJobsScanLimit_(count) {
+  if (count > AUTOMATION.maxMessagesPerRun) {
+    throw new Error(`Safety limit exceeded: more than ${AUTOMATION.maxMessagesPerRun} messages.`);
+  }
 }
 
 function buildPreviewResult_(decisions, nowMs) {
@@ -352,17 +429,26 @@ function listMessagesByQuery_(query, failWhenOverLimit, labelIds = []) {
   return messages;
 }
 
-function getMessageMetadata_(messageId, labelNamesById = {}) {
+function getMessageMetadata_(messageId, labelNamesById = {}, threadCache = new Map()) {
   const message = Gmail.Users.Messages.get('me', messageId, {
     format: 'metadata',
     metadataHeaders: ['From', 'Subject', 'Cc'],
   });
+  const metadata = messageMetadataFromApi_(message, labelNamesById);
+  metadata.onlineJobsApplicationThread = isOnlineJobsMessageEligible_(metadata)
+    && hasOnlineJobsApplicationContext_(metadata.threadId
+      ? getThreadMessages_(metadata.threadId, labelNamesById, threadCache) : [metadata]);
+  return metadata;
+}
+
+function messageMetadataFromApi_(message, labelNamesById) {
   const headers = {};
   ((message.payload && message.payload.headers) || []).forEach(header => {
     headers[String(header.name).toLowerCase()] = header.value || '';
   });
   return {
     id: message.id,
+    threadId: message.threadId || '',
     from: headers.from || '',
     cc: headers.cc || '',
     subject: headers.subject || '',
@@ -375,9 +461,31 @@ function getMessageMetadata_(messageId, labelNamesById = {}) {
   };
 }
 
-function getOrCreateRequiredLabelIds_() {
+function getThreadMessages_(threadId, labelNamesById, threadCache) {
+  if (!threadCache.has(threadId)) {
+    const thread = Gmail.Users.Threads.get('me', threadId, {
+      format: 'metadata',
+      metadataHeaders: ['From', 'Subject', 'Cc'],
+    });
+    threadCache.set(threadId, (thread.messages || []).map(message =>
+      messageMetadataFromApi_({ ...message, threadId }, labelNamesById)));
+  }
+  return threadCache.get(threadId);
+}
+
+function isOnlineJobsMessageEligible_(message) {
+  return !message.gmailLabelIds.some(id => ['SPAM', 'TRASH', 'DRAFT'].includes(id));
+}
+
+function hasOnlineJobsApplicationContext_(messages) {
+  return messages.some(message => isOnlineJobsMessageEligible_(message)
+    && (isOnlineJobsApplication_(message)
+      || message.existingLabelNames.includes(LABELS.onlineJobsApplications)));
+}
+
+function getOrCreateRequiredLabelIds_(labelNames = Object.values(LABELS)) {
   const idsByName = getLabelIdsByName_();
-  Object.values(LABELS).filter(name => !idsByName[name]).forEach(name => {
+  labelNames.filter(name => !idsByName[name]).forEach(name => {
     const label = Gmail.Users.Labels.create({
       name,
       labelListVisibility: 'labelShow',
@@ -439,12 +547,13 @@ function applyLabelDecisions_(decisions, labelIds, options) {
 function processPendingArchives_(pendingLabelId, nowMs, delayMs = AUTOMATION.archiveDelayMs) {
   const pendingMessages = listMessagesByQuery_('-in:spam -in:trash', false, [pendingLabelId]);
   const labelNamesById = getLabelNamesById_();
+  const threadCache = new Map();
   const archiveMutations = [];
   const cleanupMutations = [];
   let pending = 0;
 
   pendingMessages.forEach(message => {
-    const decision = buildDecision_(getMessageMetadata_(message.id, labelNamesById));
+    const decision = buildDecision_(getMessageMetadata_(message.id, labelNamesById, threadCache));
     if (!decision.gmailLabelIds.includes('INBOX') || !decision.archiveEligible) {
       cleanupMutations.push({ id: decision.id, addLabelIds: [], removeLabelIds: [pendingLabelId] });
     } else if (isArchiveDue_(decision, nowMs, delayMs)) {
@@ -468,9 +577,10 @@ function processImmediateArchives_(labelIds) {
     false
   );
   const labelNamesById = getLabelNamesById_();
+  const threadCache = new Map();
   const pendingLabelId = labelIds[AUTOMATION.archivePendingLabel];
   const mutations = messages
-    .map(message => buildDecision_(getMessageMetadata_(message.id, labelNamesById)))
+    .map(message => buildDecision_(getMessageMetadata_(message.id, labelNamesById, threadCache)))
     .filter(decision => decision.archiveImmediately && decision.gmailLabelIds.includes('INBOX'))
     .map(decision => ({
       id: decision.id,
@@ -516,7 +626,12 @@ if (typeof module !== 'undefined' && module.exports) {
     AUTOMATION,
     applyMessageMutations_,
     backfillAtomeTransactions30Days_,
+    backfillOnlineJobsApplications_,
+    getInboxDecisionsSince_,
+    getOnlineJobsBackfillDecisions_,
+    getMessageMetadata_,
     previewAtomeBackfill30Days_,
+    previewOnlineJobsApplications_,
     processPendingArchives_,
     testArchivePendingWithDelay_,
   };

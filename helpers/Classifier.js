@@ -9,6 +9,7 @@ const LABELS = Object.freeze({
   subscriptions: '03 Money/Subscriptions',
   security: '04 Security',
   applications: '05 Career/Applications',
+  onlineJobsApplications: '05 Career/Applications/OnlineJobs',
   jobAlerts: '05 Career/Job Alerts',
   learning: '06 Learning',
   reading: '07 Reading',
@@ -65,6 +66,7 @@ const ARCHIVE_POLICY = Object.freeze({
     LABELS.banking,
     LABELS.security,
     LABELS.applications,
+    LABELS.onlineJobsApplications,
   ]),
   archiveLabels: Object.freeze([
     LABELS.github,
@@ -87,7 +89,7 @@ function buildDecision_(message) {
   return { ...message, labelNames, policyLabelNames, ...archivePolicy, archive: false };
 }
 
-/** Pure sender/subject classifier. Every matching rule runs. */
+/** Pure message classifier, including verified thread context. Every rule runs. */
 function classifyMessage_(message) {
   const sender = extractEmailAddress_(message.from);
   const domain = sender.includes('@') ? sender.split('@').pop() : '';
@@ -98,7 +100,7 @@ function classifyMessage_(message) {
   classifyWork_(labels, sender, domain, subject);
   classifyAction_(labels, sender, domain, subject, snippet);
   classifyMoney_(labels, sender, domain, subject, snippet);
-  classifyCareer_(labels, sender, domain, subject);
+  classifyCareer_(labels, sender, domain, subject, message);
   classifyKnowledge_(labels, sender, domain, subject);
   classifySecurity_(labels, sender, domain, subject);
 
@@ -221,7 +223,13 @@ function classifyBankMessage_(labels, sender, subject) {
   labels.add(LABELS.banking);
 }
 
-function classifyCareer_(labels, sender, domain, subject) {
+function classifyCareer_(labels, sender, domain, subject, message) {
+  if (isOnlineJobsApplication_(message)
+      || message.onlineJobsApplicationThread === true
+      || (message.existingLabelNames || []).includes(LABELS.onlineJobsApplications)) {
+    labels.add(LABELS.applications);
+    labels.add(LABELS.onlineJobsApplications);
+  }
   const applicationDomain = domainMatches_(domain, CLASSIFIER_RULES.applicationDomains);
   const applicationSubject = /\b(application|applied for|jobs? you applied for|profile is being discovered|candidate|interview|job .+ has closed)\b/i.test(subject);
   if (applicationDomain && applicationSubject) labels.add(LABELS.applications);
@@ -236,6 +244,12 @@ function classifyCareer_(labels, sender, domain, subject) {
       && (alwaysJobAlert || (conditionalJobAlertSender && jobAlertSubject.test(subject)))) {
     labels.add(LABELS.jobAlerts);
   }
+}
+
+function isOnlineJobsApplication_(message) {
+  if (extractEmailAddress_(message.from) !== 'support@onlinejobs.ph') return false;
+  const subject = normalizeText_(message.subject).replace(/^(?:re:\s*)+/i, '');
+  return /^application(?:\s+for\b|\s*[-–—])/i.test(subject);
 }
 
 function classifyKnowledge_(labels, sender, domain, subject) {
@@ -375,6 +389,7 @@ if (typeof module !== 'undefined' && module.exports) {
     isArchiveDue_,
     isAtomeSender_,
     isAutomatedGitHubMessage_,
+    isOnlineJobsApplication_,
     summarizeDecisions_,
   };
 }
