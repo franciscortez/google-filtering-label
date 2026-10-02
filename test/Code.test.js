@@ -7,10 +7,12 @@ const {
   buildDecision_,
   classifyMessage_,
   countLabels_,
+  evaluateArchivePolicy_,
   extractEmailAddress_,
   getGitHubAutomationArchiveReason_,
   isArchiveDue_,
   isAutomatedGitHubMessage_,
+  isOnlineJobsApplication_,
   summarizeDecisions_,
 } = require('../helpers/Classifier.js');
 
@@ -398,6 +400,78 @@ test('requires job subjects for broad career senders', () => {
     classify('Sofia <messages@notifications.freelancer.com>', 'Re: Sofia'),
     []
   );
+});
+
+test('labels verified OnlineJobs application subjects under parent and child', () => {
+  for (const subject of [
+    'Application for Backend Developer',
+    'Application - Full Stack Developer',
+    'Application – Frontend Developer',
+    'Application — API Developer',
+    'Re: Application for Backend Developer',
+    'RE: re: Application - Full Stack Developer',
+  ]) {
+    const message = { from: 'OnlineJobs.ph <SUPPORT@ONLINEJOBS.PH>', subject };
+    assert.equal(isOnlineJobsApplication_(message), true, subject);
+    assert.deepEqual(classifyMessage_(message), [LABELS.applications, LABELS.onlineJobsApplications].sort(), subject);
+  }
+});
+
+test('OnlineJobs newsletters, account mail and unverified application senders stay outside applications', () => {
+  for (const subject of [
+    'New jobs available',
+    'Please verify your account',
+    'Your application tips for this week',
+    'Application tips and job alerts',
+    'Application',
+    'Fwd: Application for Backend Developer',
+  ]) {
+    const message = { from: 'support@onlinejobs.ph', subject };
+    assert.equal(isOnlineJobsApplication_(message), false, subject);
+    assert.deepEqual(classifyMessage_(message), [], subject);
+  }
+  for (const from of [
+    'newsletter@onlinejobs.ph',
+    'support@notifications.onlinejobs.ph',
+    'support@onlinejobs.ph.example.com',
+    'support@otheronlinejobs.ph',
+    'OnlineJobs.ph <person@example.com>',
+  ]) {
+    const message = { from, subject: 'Application for Backend Developer' };
+    assert.equal(isOnlineJobsApplication_(message), false, from);
+    assert.deepEqual(classifyMessage_(message), [], from);
+  }
+});
+
+test('OnlineJobs employer and sent replies require verified thread context', () => {
+  for (const from of ['Hiring Manager <manager@example.com>', 'Applicant <applicant@gmail.com>']) {
+    const message = { from, subject: 'Re: Next steps', snippet: 'Please schedule an interview.' };
+    assert.deepEqual(classifyMessage_(message), []);
+    assert.deepEqual(classifyMessage_({ ...message, onlineJobsApplicationThread: true }),
+      [LABELS.applications, LABELS.onlineJobsApplications].sort());
+  }
+});
+
+test('OnlineJobs applications and manually labeled child-only replies cannot enter archive queue', () => {
+  const application = buildDecision_({
+    from: 'support@onlinejobs.ph',
+    subject: 'Application for Backend Developer',
+    gmailLabelIds: ['INBOX', 'UNREAD'],
+    existingLabelNames: [LABELS.reading],
+  });
+  assert.equal(application.archiveEligible, false);
+  assert.equal(application.archiveImmediately, false);
+  assert.equal(application.archive, false);
+
+  const childOnly = buildDecision_({
+    from: 'manager@example.com',
+    subject: 'Next steps',
+    existingLabelNames: [LABELS.onlineJobsApplications, LABELS.reading],
+  });
+  assert.equal(childOnly.archiveEligible, false);
+  assert.equal(evaluateArchivePolicy_({
+    labelNames: [LABELS.onlineJobsApplications, LABELS.reading],
+  }).archiveReason, `protected:${LABELS.onlineJobsApplications}`);
 });
 
 test('labels trusted invitations and setup actions', () => {

@@ -23,6 +23,14 @@ function backfillAtomeTransactions30Days() {
   return backfillAtomeTransactions30Days_();
 }
 
+function previewOnlineJobsApplications() {
+  return previewOnlineJobsApplications_();
+}
+
+function backfillOnlineJobsApplications() {
+  return backfillOnlineJobsApplications_();
+}
+
 function previewArchiveBackfill30Days() {
   return previewArchiveBackfill30Days_();
 }

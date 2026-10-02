@@ -53,6 +53,17 @@ flowchart TD
 
 ## Supported banks and products
 
+OnlineJobs applications from `support@onlinejobs.ph` with subjects beginning
+`Application for` or `Application –` receive both `05 Career/Applications` and
+`05 Career/Applications/OnlineJobs`. Reply prefixes and capitalization are
+normalized. Replies in the same Gmail thread also receive these labels when
+the thread contains a confirmed application or a message already carrying the
+OnlineJobs label. Applications and verified replies stay in the Inbox; the
+OnlineJobs label protects messages from regular archiving even without the
+parent label. Separate employer threads are not matched by sender alone.
+Newsletters, job alerts, promotions, and account verification messages do not
+qualify as application seeds.
+
 Web3Forms submissions receive `02 Work/Web3Forms` and stay in the Inbox.
 The rule matches `notify@web3forms.com` and `notify+...@web3forms.com`,
 regardless of the submission subject. Welcome/support emails and Google
@@ -168,6 +179,21 @@ To label only existing Atome transaction messages in the Inbox, run
 transactions, Action. It does not archive messages or label unrelated mail.
 
 ## Updating the project
+
+To label existing OnlineJobs application conversations across all history,
+including archived messages, run these functions in Google Apps Script:
+
+1. `previewOnlineJobsApplications` shows the confirmed messages and destination
+   labels without creating labels or changing messages.
+2. `backfillOnlineJobsApplications` adds the Applications parent and OnlineJobs
+   child labels to those conversations, including sent replies within them.
+
+This targeted backfill excludes Spam, Trash, and drafts. It preserves Inbox
+location, unread/starred status, and other labels, and removes the internal
+Archive Pending label from confirmed application messages when present.
+Rerunning it does not add duplicate labels. Both functions stop if their scan
+exceeds the 500-message safety limit; backfill performs no writes on overflow.
+The existing generic backfill only covers Inbox mail from the last 30 days.
 
 After changing `Code.js`, files inside `helpers/`, or `appsscript.json`, run:
 
